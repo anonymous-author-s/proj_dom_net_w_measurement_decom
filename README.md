@@ -63,7 +63,6 @@ https://docs.docker.com/engine/install/ubuntu/
     python demo_fig6.py
    ```
 
-
 ## Prepare the datasets
 Before training the image- and projection-domain network, 
 
