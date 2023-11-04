@@ -19,7 +19,7 @@ https://docs.docker.com/engine/install/ubuntu/
 
    ex) 
    ```
-   docker run -it -v ./PDNET-W-MD:/workspace/PDNET-W-MD --gpus all --name mpi pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel /bin/bash
+   docker run -it -v ./projection-domain-network-with-measurement-decomposition:/workspace/projection-domain-network-with-measurement-decomposition --gpus all --name mpi pytorch/pytorch:1.11.0-cuda11.3-cudnn8-devel /bin/bash
    ```
 
 3. Install basic libraries
@@ -33,7 +33,7 @@ https://docs.docker.com/engine/install/ubuntu/
 
 4. Move to the repository
    ```
-   cd PDNET-W-MD
+   cd projection-domain-network-with-measurement-decomposition
    ```
 
 5. Install the requirements
@@ -43,7 +43,11 @@ https://docs.docker.com/engine/install/ubuntu/
 
 6. Download pre-trained models
    ```
-   wget https://www.dropbox.com/s/88vx8wfulls6gli/checkpoints.zip
+   wget https://www.dropbox.com/scl/fi/ryvda57j7dgu8yleqi51i/checkpoints.zip?rlkey=s6mczko9ajsm5va2x40e4u51t
+   ```
+   
+   ```
+   mv checkpoints.zip?rlkey=s6mczko9ajsm5va2x40e4u51t checkpoints.zip 
    ```
    
    ```
@@ -51,80 +55,97 @@ https://docs.docker.com/engine/install/ubuntu/
    ```
 
    ```
-   rm checkpoints.zip
+   rm checkpoints.zip __MACOSX
    ```
 
-7. Reproduce Figure 1-2 (a-b) in Supplementary Material
+7. Reproduce Figure 6 (i, ii, v, vi) for Transverse view
    ```
-    python demo_sup_fig1_a.py
-   ```
-
-    ```
-    python demo_sup_fig1_b.py
+    python demo_fig6.py
    ```
 
-   ```
-    python demo_sup_fig2_a.py
-   ```
-
-   ```
-    python demo_sup_fig2_b.py
-   ```
 
 ## Prepare the datasets
 Before training the image- and projection-domain network, 
 
-___YOU MUST PREPARE THE DATASET ACCORING TO DECOMPOSITION LEVEL.___
+___YOU MUST PREPARE THE DATASET.___
 
-___PLEASE SEE THE ALGORITHM 1 TO PERFORM HIERARCHICAL DECOMPOSITION.___
 
 ## Train and Test the model
 ### Train mode
-   1. image-domain CNN trained with 96 view and level 1\
-      (*level 1 is equal to nstage=0)
-      ```python
-      python main_for_img.py \
-            --mode train \
-            --lr_type_img residual \
-            --nstage 0 \
-            --downsample 8 \
-            --num_upscale 3 \
-            --factor_upscale 2 2 2
-      ```
+1. Image-domain W-Net trained at decomposition level 1 (*decomposition level 1 is equal to nstage=0)
+   ```python
+   python main_for_img2img.py \
+         --scope ct_img2img \
+         --mode train \
+         --num_epoch 100 \
+         --batch_size 4 \
+         --dir_data [PATH_OF_TRAIN_DATA_DIRECTORY] \
+         --nstage 0 \
+         --loss_type_img img \
+         --lr_type_img residual \
+   ```
 
-   2. projection-domain CNN trained with 96 view and level 4\
-      (*level 4 is equal to nstage=3)
-      ```python
-      python main_for_prj.py \
-            --mode train \
-            --lr_type_prj residual \
-            --nstage 3 \
-            --downsample 8 \
-            --num_upscale 3 \
-            --factor_upscale 2 2 2
-      ```
+2. Image-domain W-Net trained at decomposition level [N] (*decomposition level [N] is equal to nstage=[N-1])
+     ```python
+     python main_for_img2img.py \
+           --scope ct_img2img \
+           --mode train \
+           --num_epoch 100 \
+           --batch_size 4 \
+           --dir_data [PATH_OF_TRAIN_DATA_DIRECTORY] \
+           --nstage [N] \
+           --loss_type_img img \
+           --lr_type_img residual \
+     ```
 
+3. Dual-domain D-Net trained at decomposition level 1 (*decomposition level 1 is equal to nstage=0)
+     ```python
+     python main_for_prj2img.py \
+           --scope ct_prj2img \
+           --mode train \
+           --num_epoch 100 \
+           --batch_size 4 \
+           --dir_data [PATH_OF_TRAIN_DATA_DIRECTORY] \
+           --nstage 0 \
+           --loss_type_prj img \
+           --lr_type_prj consistency \
+     ```
+
+4. Dual-domain D-Net trained at decomposition level [N] (*decomposition level [N] is equal to nstage=[N-1])
+    ```python
+    python main_for_prj2img.py \
+           --scope ct_prj2img \
+           --mode train \
+           --num_epoch 100 \
+           --batch_size 4 \
+           --dir_data [PATH_OF_TRAIN_DATA_DIRECTORY] \
+           --nstage [N] \
+           --loss_type_prj img \
+           --lr_type_prj consistency \
+    ```
+      
 ### Test mode
-   1. image-domain CNN trained with 96 view and level 1\
-      (*level 1 is equal to nstage=0)
-      ```python
-      python main_for_img.py \
-            --mode test \
-            --lr_type_img residual \
-            --nstage 0 \
-            --downsample 8 \
-            --num_upscale 3 \
-            --factor_upscale 2 2 2
-      ```
+1. Image-domain W-Net trained at decomposition level [N] (*decomposition level [N] is equal to nstage=[N-1])
+    ```python
+    python main_for_img2img.py \
+          --scope ct_img2img \
+          --mode test \
+          --batch_size 1 \
+          --dir_data [PATH_OF_TEST_DATA_DIRECTORY] \
+          --nstage [N] \
+          --loss_type_img img \
+          --lr_type_img residual \
+    ```
 
-   2. projection-domain CNN trained with 96 view and level 4\
-      (*level 4 is equal to nstage=3)
-      ```python
-      python main_for_prj.py \
-            --mode test \
-            --lr_type_prj residual \
-            --nstage 3 \
-            --downsample 8 \
-            --num_upscale 3 \
-            --factor_upscale 2 2 2
-      ```
+2. Dual-domain D-Net trained at decomposition level [N] (*decomposition level [N] is equal to nstage=[N-1])
+    ```python
+    python main_for_prj2img.py \
+           --scope ct_prj2img \
+           --mode test \
+           --batch_size 1 \
+           --dir_data [PATH_OF_TEST_DATA_DIRECTORY] \
+           --nstage [N] \
+           --loss_type_prj img \
+           --lr_type_prj consistency \
+    ```
+      

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="Black">
+    <option name="sdkName" value="Remote Python 3.8.18 (sftp://ssu_it1@220.149.89.216:2222) projection-domain-network-with-measurement-decomposition" />
+  </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.8.18 (sftp://ssu_it1@220.149.89.216:2222) projection-domain-network-with-measurement-decomposition" project-jdk-type="Python SDK" />
 </project>

@@ -1,0 +1,6 @@
+checkpoints/
+logs/
+results/
+__pycache__/
+*.cu
+*.zip

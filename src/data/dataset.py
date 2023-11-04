@@ -9,7 +9,7 @@ from skimage import transform
 from src.utils.params import get_params, get_decom
 
 from src.utils.decom_img import decom_img
-from src.utils.decom_prj import decom_prj_gpu as decom_prj
+from src.utils.decom_prj import decom_prj
 from src.utils.comp_img import comp_img
 
 from src.models import op_ct
@@ -73,9 +73,6 @@ class Dataset(torch.utils.data.Dataset):
         ##
     def __getitem__(self, index):
         prj = np.load(self.lst_input[index])
-        # fbp = np.load(self.lst_label[index])
-
-        # prj = self.weight * prj
         
         if np.random.rand() < self.flip:
             prj = np.flip(prj, axis=1)
@@ -87,12 +84,6 @@ class Dataset(torch.utils.data.Dataset):
             prj = np.roll(prj, shift=int(np.random.randint(self.params['nView'])), axis=1)
 
         label_prj = prj.copy()
-        # label_fbp = fbp.copy()
-
-        # if self.noise_range[-1]:
-        #     i0 = 10 ** np.random.uniform(self.noise_range[0], self.noise_range[-1])
-        #     input_prj, input_noise = add_poisson(label_prj.copy(), i0)
-
         downsample = self.downsample_range[np.random.randint(0, len(self.downsample_range))]
 
         self.params_ds = get_params(name_project=self.params['name_project'], dir_project=self.params['dir_project'],
@@ -100,7 +91,6 @@ class Dataset(torch.utils.data.Dataset):
 
 
         label_flt = op_ct.Filtration(label_prj.copy(), self.params)
-        # input_flt = op_ct.Filtration(input_prj.copy(), self.params)
         input_flt = label_flt[:, ::downsample, :].copy()
 
 
@@ -112,23 +102,15 @@ class Dataset(torch.utils.data.Dataset):
         input_mask = np.zeros_like(input_flt)
         input_mask[:, ::downsample, :] = 1
 
-        # input_flt[:, ::downsample, :] = label_flt[:, ::downsample, :].copy()
         input_flt = (input_mask * label_flt + (1 - input_mask) * input_flt).copy()
 
-
-
-        # label_flt_dec = decom_prj(label_flt, self.nStage, self.params)
-        # label_fbp_dec = op_ct.Backprojection(label_flt_dec.copy(), self.params_dec)
 
         label_flt_dec = decom_prj(label_flt, self.nStage, self.params)
         input_flt_dec = decom_prj(input_flt, self.nStage, self.params)
         input_mask_dec = np.zeros_like(input_flt_dec)
         input_mask_dec[:, ::downsample, :] = 1
 
-        # input_noise_dec = (input_flt_dec - label_flt_dec).copy()
-
         label_fbp_dec = decom_img(label_fbp, self.nStage, self.params)
-        # label_fbp_dec = op_ct.Backprojection(label_flt_dec, self.params_dec)
         input_fbp_dec = op_ct.Backprojection(input_flt_dec, self.params_dec)
 
         
@@ -379,87 +361,3 @@ class UnifromSample(object):
             data[key] = value[id_h, id_w]
 
         return data
-
-
-def generate_fov(params, ratio, nker=7, sgm=3):
-    # def gaussian_kernel(size, sigma=1, verbose=False):
-    #     def dnorm(x, mu, sd):
-    #         return 1 / (np.sqrt(2 * np.pi) * sd) * np.exp(-np.power((x - mu) / sd, 2) / 2)
-    #
-    #     kernel_1D = np.linspace(-(size // 2), size // 2, size)
-    #     for i in range(size):
-    #         kernel_1D[i] = dnorm(kernel_1D[i], 0, sigma)
-    #     kernel_2D = np.outer(kernel_1D.T, kernel_1D.T)
-    #
-    #     # kernel_2D *= 1.0 / kernel_2D.max()
-    #     kernel_2D *= 1.0 / np.sum(kernel_2D)
-    #
-    #     if verbose:
-    #         plt.imshow(kernel_2D, interpolation='none', cmap='gray')
-    #         plt.title("Image")
-    #         plt.show()
-    #
-    #     return kernel_2D
-
-    if params['CT_NAME'] == 'parallel':
-        dDct = params['dDct']
-    elif params['CT_NAME'] == 'fan':
-        dDct = params['dDct'] * params['dDSO'] / params['dDSD']
-
-    # FOV - Projection
-    radius_dct = dDct * params['nDct'] / 2.0
-    radius_fov = ratio * radius_dct
-
-    fov_prj = np.linspace(-radius_dct, radius_dct, params['nDct'])
-    fov_prj = 1.0 * (np.abs(fov_prj) <= radius_fov)
-    fov_prj = np.tile(fov_prj[np.newaxis, :], (params['nView'], 1)).astype(np.float32)
-
-    # FOV - Image
-    radius_img_x = params['dImgX'] * (params['nImgX'] - 1) / 2.0
-    radius_img_y = params['dImgY'] * (params['nImgY'] - 1) / 2.0
-
-    fov_img_x = np.linspace(-radius_img_x, radius_img_x, params['nImgX'])
-    fov_img_y = np.linspace(-radius_img_y, radius_img_y, params['nImgY'])
-
-    ms_img_x, ms_img_y = np.meshgrid(fov_img_x, fov_img_y)
-
-    # FOV with tight radius
-    fov_img = (1.0 * (((ms_img_x ** 2) + (ms_img_y ** 2)) < (radius_fov ** 2))).astype(np.float32)
-
-    return fov_prj, fov_img
-
-# def add_poisson(x0, i0):
-#     x = np.exp(-x0)
-#     x = poisson.rvs(i0 * x)
-#     x[x < 1] = 1
-#     x = -np.log(x / i0)
-#     x[x < 0] = 0
-#     x = x.astype(np.float32)
-#
-#     noise = x - x0
-
-# def add_poisson(x0, i0, a):
-#
-#     # Development and Validation of a Practical Lower-Dose-Simulation Tool for Optimizing Computed Tomography Scan Protocols
-#     sz = x0.shape
-#
-#     noise = np.sqrt((1.0 - a)/a * np.exp(x0)/i0) * np.random.randn(sz[0], sz[1])
-#     x = x0 + noise
-#
-#     noise = noise.astype(np.float32)
-#     x = x.astype(np.float32)
-#
-#     return x, noise
-
-# Simple Lower-Dose-Simulation
-def add_poisson(x0, i0):
-    x = np.exp(-x0)
-    x = poisson.rvs(i0 * x).reshape(x0.shape)
-    x[x < 1] = 1
-    x = -np.log(x / i0)
-    x[x < 0] = 0
-    x = x.astype(np.float32)
-
-    noise = x - x0
-
-    return x, noise

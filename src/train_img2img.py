@@ -3,10 +3,6 @@ from src.data.dataset import *
 from src.utils.utils import *
 from src.utils.params import get_params, get_decom
 
-# from src.utils.decom_img import decom_img
-# from src.utils.decom_prj import decom_prj_gpu as dcom_prj
-# from src.utils.comp_img import comp_img
-
 import torch
 
 import torch.nn as nn
@@ -18,13 +14,8 @@ from torchsummary import summary
 
 import matplotlib.pyplot as plt
 
-# import wandb
-
 WGT = 5e+3
 
-
-# MEAN = 6e-5 * WGT
-# STD = 6e-5 * WGT
 
 def set_gpu(str_ids):
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -93,14 +84,6 @@ class Train:
 
         self.nstage = args.nstage
 
-        self.downsample = args.downsample
-        
-        # self.num_upscale = args.num_upscale
-        # self.factor_upscale = args.factor_upscale
-
-        # assert self.num_upscale == len(self.factor_upscale), "You have to match the length of 'factor_upscale' with value of 'num_upscale'"
-        # assert self.downsample == np.prod(self.factor_upscale), "You have to match the product of 'factor_upscale' with value of 'downsample'"
-
         self.nch_in = args.nch_in
         self.nch_out = args.nch_out
 
@@ -123,10 +106,6 @@ class Train:
         self.gpu_ids = int(0)
         self.device = torch.device('cuda:%d' % self.gpu_ids if torch.cuda.is_available() else 'cpu')
 
-        # self.gpu_ids = set_gpu(args.gpu_ids)
-        # if not torch.cuda.is_available(): self.device = torch.device('cpu')
-        # else: self.device = torch.device('cuda:0')
-
         ##
         self.params = get_params(name_project=self.name_project, dir_project=self.dir_project, dir_dll=self.dir_dll,
                                  nStage=0, nslice=self.batch_size)
@@ -137,7 +116,6 @@ class Train:
         self.downsample_range = self.params['downsample_range']
 
         ##
-        # self.scope = self.scope + '_%s' % self.lr_type_img + '_downsample%s' % str(self.downsample_range)[1:-1].replace(', ', '_') + '_stage%d' % self.nstage + '_loss_%s' % self.loss_type_img
         self.scope = self.scope + '_%s_%s' % (self.lr_type_img, self.lr_type_img) + '_block%d' % self.num_block + '_stage%d' % self.nstage + '_loss_%s' % self.loss_type_img
         print(self.scope)
 
@@ -145,15 +123,6 @@ class Train:
 
     ## Train function
     def train(self):
-        ## wandb
-        # wandb.init(
-        #     # set the wandb project where this run will be logged
-        #     project=self.name_data,
-        #     name=self.scope,
-        # )
-        #
-        # wandb.config.update(self)
-
         ## CT parameter
         params = self.params
         params_dec = self.params_dec
@@ -211,49 +180,23 @@ class Train:
         num_batch_valid = int((num_valid / self.batch_size) + ((num_valid % self.batch_size) != 0))
 
         ## setup network
-        # net_prj1 = UNet_res(in_chans=self.nch_in, out_chans=self.nch_out, chans=self.num_channels,
-        #                     num_pool_layers=self.num_block, num_upscale=0, factor_upscale=[0, ])
         net_img1 = UNet_res(in_chans=self.nch_in, out_chans=self.nch_out, chans=self.num_channels,
                             num_pool_layers=self.num_block, num_upscale=0, factor_upscale=[0, ])
 
         net_img2 = UNet_res(in_chans=self.nch_in, out_chans=self.nch_out, chans=self.num_channels,
                             num_pool_layers=self.num_block, num_upscale=0, factor_upscale=[0, ])
 
-        # net_bp = Backprojection(params=params)
         net_bp_dec = Backprojection(params=params_dec)
-        # net_p = Projection(params=params)
-        # net_p_dec = Projection(params=params_dec)
 
-        # order = max(64, 2 ** (int(np.log2(2 * params['nDctX'])) + 1))
-        # net_flt = nn.Conv2d(self.nch_in, self.nch_out, kernel_size=(1, order + 1), stride=1, padding=(0, (order + 1)//2), bias=False)
-        # weight, _ = designFilter(params)
-        #
-        # weight = np.reshape(weight.astype(np.float32), net_flt.weight.data.shape)
-        # net_flt.weight.data = torch.from_numpy(weight)
-        #
-        # for param in net_flt.parameters():
-        #     param.requires_grad = False
 
         if torch.cuda.is_available():
-            # net_prj = net_prj.to(self.device)
             net_img1 = net_img1.to(self.device)
             net_img2 = net_img2.to(self.device)
-            # net_bp = net_bp.to(self.device)
+
             net_bp_dec = net_bp_dec.to(self.device)
-            # net_p = net_p.to(self.device)
-            # net_p_dec = net_p_dec.to(self.device)
-            # net_flt = net_flt.to(self.device)
-            # net_pe_img1 = net_pe_img1.to(self.device)
 
         summary(net_img1, (1, params_dec['nImgY'], params_dec['nImgX']))
         summary(net_img2, (1, params_dec['nImgY'], params_dec['nImgX']))
-
-        # if self.nstage == 0:
-        #     init_weights(net_prj1, init_type='normal', init_gain=0.02)
-        # else:
-        #     _scope = self.scope.split('_stage')[0] + '_stage0' + '_loss_%s' % self.loss_type
-        #     _dir_checkpoint = os.path.join(self.dir_checkpoint, _scope)
-        #     net_img1, _, _ = self.load_single(_dir_checkpoint, net_prj1)
 
         if self.nstage == 0:
             init_weights(net_img1, init_type='normal', init_gain=0.02)
@@ -262,34 +205,19 @@ class Train:
             _scope = self.scope.split('_stage')[0] + '_stage0' + '_loss_%s' % self.loss_type_img
             _dir_checkpoint = os.path.join(self.dir_checkpoint, _scope)
             net_img1, net_img2, _, _, _ = self.load_dual(_dir_checkpoint, net_img1, net_img2)
-            # if self.is_embedding:
-            #     net_pe_img1, _, _ = self.load_single(dir_checkpoint_emb, net_pe_img1)
 
         ## setup optimizer
-        # params_prj1 = net_prj1.parameters()
         params_img1 = net_img1.parameters()
         params_img2 = net_img2.parameters()
-        # params_bp = net_bp.parameters()
 
         params_img2img = [
             {'params': params_img1},
             {'params': params_img2}
         ]
 
-        # optim_prj1 = torch.optim.Adam(params_prj1, lr=self.lr_prj, weight_decay=self.wd_prj)
-        # optim_img1 = torch.optim.Adam(params_img1, lr=self.lr_img, weight_decay=self.wd_img)
-        # optim_img2 = torch.optim.Adam(params_img2, lr=self.lr_img, weight_decay=self.wd_img)
         optim_img2img = torch.optim.Adam(params_img2img, lr=self.lr_img, weight_decay=self.wd_img)
 
-        # if self.is_embedding:
-        #     optim_img1.add_param_group({'params': net_pe_img1.parameters()})
-
-        # sched_prj = None
-        # sched_prj = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_prj, patience=5, verbose=True)
-        # sched_img1 = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_img1, patience=5, verbose=True)
-        # sched_img2 = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_img2, patience=5, verbose=True)
         sched_img2img = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_img2img, patience=5, verbose=True)
-        # sched_prj = torch.optim.lr_scheduler.MultiStepLR(optim_prj, [20], gamma=0.1)
 
         ## setup loss functions
         loss_l1 = nn.L1Loss()
@@ -302,38 +230,25 @@ class Train:
         st_epoch = 0
 
         if self.train_continue == 'on':
-            # net_prj1, optim_prj1, st_epoch = self.load_single(dir_checkpoint, net_prj1)
             net_img1, net_img2, optim_img2img, _, st_epoch = self.load_dual(dir_checkpoint, net_img1, net_img2, optim1=optim_img2img, optim2=optim_img2img)
 
-        # net_prj = nn.DataParallel(net_prj)
-        # net_img = nn.DataParallel(net_img)
-        # net_bp = nn.DataParallel(net_bp)
 
         if torch.cuda.is_available():
-            # net_prj1 = net_prj1.to(self.device)
             net_img1 = net_img1.to(self.device)
             net_img2 = net_img2.to(self.device)
-            # net_bp_dec = net_bp_dec.to(self.device)
 
         ## setup tensorboard
         writer_train = SummaryWriter(log_dir=dir_log_train)
         writer_valid = SummaryWriter(log_dir=dir_log_valid)
 
-        # wandb.watch(net_img1)
 
         ## setup training loop using epoch
         for epoch in range(st_epoch + 1, self.num_epoch + 1):
 
             ## training phase
-            # net_prj1.train()
             net_img1.train()
             net_img2.train()
-            # net_bp.eval()
-            # net_bp_dec.eval()
-            # net_p.eval()
-            # net_flt.eval()
 
-            # loss_prj1_train = []
             loss_img1_train = []
             loss_img2_train = []
             loss_img2img_train = []
@@ -347,7 +262,6 @@ class Train:
                 input_fbp = data['input_fbp']
                 label_flt = data['label_flt']
                 input_flt = data['input_flt']
-                # input_noise = data['input_noise']
 
                 # reshape (-1, 1, H, W)
                 [BI, CI, HI, WI] = list(label_fbp.shape)
@@ -357,56 +271,13 @@ class Train:
                 [BP, CP, HP, WP] = list(label_flt.shape)
                 label_flt = label_flt.reshape(-1, 1, HP, WP)
                 input_flt = input_flt.reshape(-1, 1, HP, WP)
-                # input_noise = input_noise.reshape(-1, 1, HP, WP)
 
                 if torch.cuda.is_available():
                     label_fbp = label_fbp.to(self.device)
                     input_fbp = input_fbp.to(self.device)
 
                 # initialize optimizer
-                # optim_prj1.zero_grad()
-                # optim_img1.zero_grad()
-                # optim_img2.zero_grad()
                 optim_img2img.zero_grad()
-
-                # if self.loss_type == 'prj':
-                #     output_prj1 = net_prj1(input_flt.detach())
-                #
-                #     # Residual
-                #     if self.lr_type_prj == 'residual':
-                #         output_prj1 = input_flt.detach() - output_prj1
-                #
-                #     # BACKPROJECTION
-                #     output_img1 = net_bp_dec(output_prj1)
-                #
-                #     # BACKWARD net-img
-                #     loss_prj1 = loss_l2(output_prj1, label_flt)
-                #
-                #
-                # elif self.loss_type == 'img':
-                #     # FORWARD net-prj
-                #     output_prj1 = net_prj1(input_flt.detach())
-                #
-                #     # BACKPROJECTION
-                #     output_img1 = net_bp_dec(output_prj1)
-                #
-                #     # Residual
-                #     if self.lr_type_img == 'residual':
-                #         output_img1 = input_fbp.detach() - output_img1
-                #
-                #     # BACKWARD net-prj
-                #     loss_prj1 = loss_l2(output_img1, label_fbp)
-                #
-                # loss_prj1.backward()
-                # optim_prj1.step()
-                #
-                # # GET losses
-                # loss_prj1_train += [loss_prj1.item()]
-                # # loss_img1_train += [loss_img1.item()]
-                #
-                # print(
-                #     'TRAIN: EPOCH %d: BATCH %04d/%04d | LR (P) %.2e | LOSS (I) %.4e'
-                #     % (epoch, i, num_batch_train, optim_prj1.param_groups[0]['lr'], np.mean(loss_prj1_train)))
 
                 # FORWARD net-img1
                 if self.loss_type_img == 'img':
@@ -419,14 +290,6 @@ class Train:
                     # BACKWARD net-img
                     loss_img1 = loss_l2(output_img1, label_fbp)
 
-                # elif self.loss_type == 'prj':
-                #     output_img1 = net_img1(input_fbp.detach())
-                #
-                #     output_flt1 = net_flt(net_p(output_img1))
-                #
-                #     # BACKWARD net-img
-                #     loss_img1 = loss_l2(output_flt1, label_flt)
-                
                 # FORWARD net-img2
                 if self.loss_type_img == 'img':
                     output_img2 = net_img2(output_img1)
@@ -438,25 +301,8 @@ class Train:
                     # BACKWARD net-img
                     loss_img2 = loss_l2(output_img2, label_fbp)
 
-                # elif self.loss_type == 'prj':
-                #     output_img2 = net_img2(output_img1.detach())
-                #
-                #     output_flt2 = net_flt(net_p(output_img2))
-                #
-                #     # BACKWARD net-img
-                #     loss_img2 = loss_l2(output_flt2, label_flt)
 
                 loss_img2img = loss_img1 + loss_img2
-
-                # # GET losses
-                # loss_img1.backward()
-                # optim_img1.step()
-                # loss_img1_train += [loss_img1.item()]
-                #
-                # # GET losses
-                # loss_img2.backward()
-                # optim_img2.step()
-                # loss_img2_train += [loss_img2.item()]
 
 
                 # GET losses
@@ -521,15 +367,9 @@ class Train:
             ## validation phase
             with torch.no_grad():
                 ## training phase
-                # net_prj1.train()
                 net_img1.eval()
                 net_img2.eval()
-                # net_bp.eval()
-                # net_bp_dec.eval()
-                # net_p.eval()
-                # net_flt.eval()
-    
-                # loss_prj1_train = []
+
                 loss_img1_valid = []
                 loss_img2_valid = []
                 loss_img2img_valid = []
@@ -543,7 +383,6 @@ class Train:
                     input_fbp = data['input_fbp']
                     label_flt = data['label_flt']
                     input_flt = data['input_flt']
-                    # input_noise = data['input_noise']
     
                     # reshape (-1, 1, H, W)
                     [BI, CI, HI, WI] = list(label_fbp.shape)
@@ -553,57 +392,11 @@ class Train:
                     [BP, CP, HP, WP] = list(label_flt.shape)
                     label_flt = label_flt.reshape(-1, 1, HP, WP)
                     input_flt = input_flt.reshape(-1, 1, HP, WP)
-                    # input_noise = input_noise.reshape(-1, 1, HP, WP)
     
                     if torch.cuda.is_available():
                         label_fbp = label_fbp.to(self.device)
                         input_fbp = input_fbp.to(self.device)
-    
-                    # initialize optimizer
-                    # optim_prj1.zero_grad()
-                    # optim_img1.zero_grad()
-                    # optim_img2.zero_grad()
-                    # optim_img2img.zero_grad()
-    
-                    # if self.loss_type == 'prj':
-                    #     output_prj1 = net_prj1(input_flt.detach())
-                    #
-                    #     # Residual
-                    #     if self.lr_type_prj == 'residual':
-                    #         output_prj1 = input_flt.detach() - output_prj1
-                    #
-                    #     # BACKPROJECTION
-                    #     output_img1 = net_bp_dec(output_prj1)
-                    #
-                    #     # BACKWARD net-img
-                    #     loss_prj1 = loss_l2(output_prj1, label_flt)
-                    #
-                    #
-                    # elif self.loss_type == 'img':
-                    #     # FORWARD net-prj
-                    #     output_prj1 = net_prj1(input_flt.detach())
-                    #
-                    #     # BACKPROJECTION
-                    #     output_img1 = net_bp_dec(output_prj1)
-                    #
-                    #     # Residual
-                    #     if self.lr_type_img == 'residual':
-                    #         output_img1 = input_fbp.detach() - output_img1
-                    #
-                    #     # BACKWARD net-prj
-                    #     loss_prj1 = loss_l2(output_img1, label_fbp)
-                    #
-                    # loss_prj1.backward()
-                    # optim_prj1.step()
-                    #
-                    # # GET losses
-                    # loss_prj1_train += [loss_prj1.item()]
-                    # # loss_img1_train += [loss_img1.item()]
-                    #
-                    # print(
-                    #     'TRAIN: EPOCH %d: BATCH %04d/%04d | LR (P) %.2e | LOSS (I) %.4e'
-                    #     % (epoch, i, num_batch_train, optim_prj1.param_groups[0]['lr'], np.mean(loss_prj1_train)))
-    
+
                     # FORWARD net-img1
                     if self.loss_type_img == 'img':
                         output_img1 = net_img1(input_fbp.detach())
@@ -614,15 +407,7 @@ class Train:
     
                         # BACKWARD net-img
                         loss_img1 = loss_l2(output_img1, label_fbp)
-    
-                    # elif self.loss_type == 'prj':
-                    #     output_img1 = net_img1(input_fbp.detach())
-                    #
-                    #     output_flt1 = net_flt(net_p(output_img1))
-                    #
-                    #     # BACKWARD net-img
-                    #     loss_img1 = loss_l2(output_flt1, label_flt)
-                    
+
                     # FORWARD net-img2
                     if self.loss_type_img == 'img':
                         output_img2 = net_img2(output_img1)
@@ -633,31 +418,11 @@ class Train:
     
                         # BACKWARD net-img
                         loss_img2 = loss_l2(output_img2, label_fbp)
-    
-                    # elif self.loss_type == 'prj':
-                    #     output_img2 = net_img2(output_img1.detach())
-                    #
-                    #     output_flt2 = net_flt(net_p(output_img2))
-                    #
-                    #     # BACKWARD net-img
-                    #     loss_img2 = loss_l2(output_flt2, label_flt)
-    
+
                     loss_img2img = loss_img1 + loss_img2
-    
-                    # # GET losses
-                    # loss_img1.backward()
-                    # optim_img1.step()
-                    # loss_img1_train += [loss_img1.item()]
-                    #
-                    # # GET losses
-                    # loss_img2.backward()
-                    # optim_img2.step()
-                    # loss_img2_train += [loss_img2.item()]
-    
+
     
                     # GET losses
-                    # loss_img2img.backward()
-                    # optim_img2img.step()
                     loss_img1_valid += [loss_img1.item()]
                     loss_img2_valid += [loss_img2.item()]
                     loss_img2img_valid += [loss_img2img.item()]
@@ -710,19 +475,12 @@ class Train:
                 # wandb.log({'valid/loss_img1': np.mean(loss_img1_valid)}, step=epoch)
 
             # update schduler
-            # if sched_prj1 is not None:
-            #     sched_prj1.step(np.mean(loss_prj1_valid))
-            # if sched_img1 is not None:
-            #     sched_img1.step(np.mean(loss_img1_valid))            
-            # if sched_img2 is not None:
-            #     sched_img2.step(np.mean(loss_img2_valid))
             if sched_img2img is not None:
                     sched_img2img.step(np.mean(loss_img2img_valid))
 
         writer_train.close()
         writer_valid.close()
 
-        # wandb.finish()
 
     ## Test function
     def test(self):
@@ -763,49 +521,20 @@ class Train:
         num_batch_test = int((num_test / self.batch_size) + ((num_test % self.batch_size) != 0))
 
         ## setup network
-        # net_prj1 = UNet_res(in_chans=self.nch_in, out_chans=self.nch_out, chans=self.num_channels,
-        #                     num_pool_layers=self.num_block, num_upscale=0, factor_upscale=[0, ])
         net_img1 = UNet_res(in_chans=self.nch_in, out_chans=self.nch_out, chans=self.num_channels,
                             num_pool_layers=self.num_block, num_upscale=0, factor_upscale=[0, ])
 
         net_img2 = UNet_res(in_chans=self.nch_in, out_chans=self.nch_out, chans=self.num_channels,
                             num_pool_layers=self.num_block, num_upscale=0, factor_upscale=[0, ])
 
-        # net_bp = Backprojection(params=params)
         net_bp_dec = Backprojection(params=params_dec)
-        # net_p = Projection(params=params)
-        # net_p_dec = Projection(params=params_dec)
-
-        # order = max(64, 2 ** (int(np.log2(2 * params['nDctX'])) + 1))
-        # net_flt = nn.Conv2d(self.nch_in, self.nch_out, kernel_size=(1, order + 1), stride=1, padding=(0, (order + 1)//2), bias=False)
-        # weight, _ = designFilter(params)
-        #
-        # weight = np.reshape(weight.astype(np.float32), net_flt.weight.data.shape)
-        # net_flt.weight.data = torch.from_numpy(weight)
-        #
-        # for param in net_flt.parameters():
-        #     param.requires_grad = False
 
         if torch.cuda.is_available():
-            # net_prj = net_prj.to(self.device)
-            net_img1 = net_img1.to(self.device)
             net_img2 = net_img2.to(self.device)
-            # net_bp = net_bp.to(self.device)
             net_bp_dec = net_bp_dec.to(self.device)
-            # net_p = net_p.to(self.device)
-            # net_p_dec = net_p_dec.to(self.device)
-            # net_flt = net_flt.to(self.device)
-            # net_pe_img1 = net_pe_img1.to(self.device)
 
         summary(net_img1, (1, params_dec['nImgY'], params_dec['nImgX']))
         summary(net_img2, (1, params_dec['nImgY'], params_dec['nImgX']))
-
-        # if self.nstage == 0:
-        #     init_weights(net_prj1, init_type='normal', init_gain=0.02)
-        # else:
-        #     _scope = self.scope.split('_stage')[0] + '_stage0' + '_loss_%s' % self.loss_type
-        #     _dir_checkpoint = os.path.join(self.dir_checkpoint, _scope)
-        #     net_img1, _, _ = self.load_single(_dir_checkpoint, net_prj1)
 
         if self.nstage == 0:
             init_weights(net_img1, init_type='normal', init_gain=0.02)
@@ -814,34 +543,18 @@ class Train:
             _scope = self.scope.split('_stage')[0] + '_stage0' + '_loss_%s' % self.loss_type_img
             _dir_checkpoint = os.path.join(self.dir_checkpoint, _scope)
             net_img1, net_img2, _, _, _ = self.load_dual(_dir_checkpoint, net_img1, net_img2)
-            # if self.is_embedding:
-            #     net_pe_img1, _, _ = self.load_single(dir_checkpoint_emb, net_pe_img1)
 
         ## setup optimizer
-        # params_prj1 = net_prj1.parameters()
         params_img1 = net_img1.parameters()
         params_img2 = net_img2.parameters()
-        # params_bp = net_bp.parameters()
 
         params_img2img = [
             {'params': params_img1},
             {'params': params_img2}
         ]
 
-        # optim_prj1 = torch.optim.Adam(params_prj1, lr=self.lr_prj, weight_decay=self.wd_prj)
-        # optim_img1 = torch.optim.Adam(params_img1, lr=self.lr_img, weight_decay=self.wd_img)
-        # optim_img2 = torch.optim.Adam(params_img2, lr=self.lr_img, weight_decay=self.wd_img)
         optim_img2img = torch.optim.Adam(params_img2img, lr=self.lr_img, weight_decay=self.wd_img)
-
-        # if self.is_embedding:
-        #     optim_img1.add_param_group({'params': net_pe_img1.parameters()})
-
-        # sched_prj = None
-        # sched_prj = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_prj, patience=5, verbose=True)
-        # sched_img1 = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_img1, patience=5, verbose=True)
-        # sched_img2 = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_img2, patience=5, verbose=True)
         sched_img2img = torch.optim.lr_scheduler.ReduceLROnPlateau(optim_img2img, patience=5, verbose=True)
-        # sched_prj = torch.optim.lr_scheduler.MultiStepLR(optim_prj, [20], gamma=0.1)
 
         ## setup loss functions
         loss_l1 = nn.L1Loss()
@@ -862,23 +575,15 @@ class Train:
         # net_bp = nn.DataParallel(net_bp)
 
         if torch.cuda.is_available():
-            # net_prj1 = net_prj1.to(self.device)
             net_img1 = net_img1.to(self.device)
             net_img2 = net_img2.to(self.device)
-            # net_bp_dec = net_bp_dec.to(self.device)
 
         ## test phase
         with torch.no_grad():
             ## training phase
-            # net_prj1.train()
             net_img1.eval()
             net_img2.eval()
-            # net_bp.eval()
-            # net_bp_dec.eval()
-            # net_p.eval()
-            # net_flt.eval()
 
-            # loss_prj1_train = []
             loss_img1_test = []
             loss_img2_test = []
             loss_img2img_test = []
@@ -903,56 +608,10 @@ class Train:
                 [BP, CP, HP, WP] = list(label_flt.shape)
                 label_flt = label_flt.reshape(-1, 1, HP, WP)
                 input_flt = input_flt.reshape(-1, 1, HP, WP)
-                # input_noise = input_noise.reshape(-1, 1, HP, WP)
 
                 if torch.cuda.is_available():
                     label_fbp = label_fbp.to(self.device)
                     input_fbp = input_fbp.to(self.device)
-
-                # initialize optimizer
-                # optim_prj1.zero_grad()
-                # optim_img1.zero_grad()
-                # optim_img2.zero_grad()
-                # optim_img2img.zero_grad()
-
-                # if self.loss_type == 'prj':
-                #     output_prj1 = net_prj1(input_flt.detach())
-                #
-                #     # Residual
-                #     if self.lr_type_prj == 'residual':
-                #         output_prj1 = input_flt.detach() - output_prj1
-                #
-                #     # BACKPROJECTION
-                #     output_img1 = net_bp_dec(output_prj1)
-                #
-                #     # BACKWARD net-img
-                #     loss_prj1 = loss_l2(output_prj1, label_flt)
-                #
-                #
-                # elif self.loss_type == 'img':
-                #     # FORWARD net-prj
-                #     output_prj1 = net_prj1(input_flt.detach())
-                #
-                #     # BACKPROJECTION
-                #     output_img1 = net_bp_dec(output_prj1)
-                #
-                #     # Residual
-                #     if self.lr_type_img == 'residual':
-                #         output_img1 = input_fbp.detach() - output_img1
-                #
-                #     # BACKWARD net-prj
-                #     loss_prj1 = loss_l2(output_img1, label_fbp)
-                #
-                # loss_prj1.backward()
-                # optim_prj1.step()
-                #
-                # # GET losses
-                # loss_prj1_train += [loss_prj1.item()]
-                # # loss_img1_train += [loss_img1.item()]
-                #
-                # print(
-                #     'TRAIN: EPOCH %d: BATCH %04d/%04d | LR (P) %.2e | LOSS (I) %.4e'
-                #     % (epoch, i, num_batch_train, optim_prj1.param_groups[0]['lr'], np.mean(loss_prj1_train)))
 
                 # FORWARD net-img1
                 if self.loss_type_img == 'img':
@@ -965,14 +624,6 @@ class Train:
                     # BACKWARD net-img
                     loss_img1 = loss_l2(output_img1, label_fbp)
 
-                # elif self.loss_type == 'prj':
-                #     output_img1 = net_img1(input_fbp.detach())
-                #
-                #     output_flt1 = net_flt(net_p(output_img1))
-                #
-                #     # BACKWARD net-img
-                #     loss_img1 = loss_l2(output_flt1, label_flt)
-                
                 # FORWARD net-img2
                 if self.loss_type_img == 'img':
                     output_img2 = net_img2(output_img1)
@@ -984,30 +635,11 @@ class Train:
                     # BACKWARD net-img
                     loss_img2 = loss_l2(output_img2, label_fbp)
 
-                # elif self.loss_type == 'prj':
-                #     output_img2 = net_img2(output_img1.detach())
-                #
-                #     output_flt2 = net_flt(net_p(output_img2))
-                #
-                #     # BACKWARD net-img
-                #     loss_img2 = loss_l2(output_flt2, label_flt)
 
                 loss_img2img = loss_img1 + loss_img2
 
-                # # GET losses
-                # loss_img1.backward()
-                # optim_img1.step()
-                # loss_img1_train += [loss_img1.item()]
-                #
-                # # GET losses
-                # loss_img2.backward()
-                # optim_img2.step()
-                # loss_img2_train += [loss_img2.item()]
-
 
                 # GET losses
-                # loss_img2img.backward()
-                # optim_img2img.step()
                 loss_img1_test += [loss_img1.item()]
                 loss_img2_test += [loss_img2.item()]
                 loss_img2img_test += [loss_img2img.item()]
@@ -1038,12 +670,6 @@ class Train:
                         _output_img2.append(comp_img(output_img2[j], self.nstage, self.params))
                         _input_fbp.append(comp_img(input_fbp[j], self.nstage, self.params))
                         _label_fbp.append(comp_img(label_fbp[j], self.nstage, self.params))
-
-                        # _output_img1[j] = np.clip(_output_img1[j], 0, 1)
-                        # _output_img2[j] = np.clip(_output_img2[j], 0, 1)
-                        # _input_fbp[j] = np.clip(_input_fbp[j], 0, 1)
-                        # _label_fbp[j] = np.clip(_label_fbp[j], 0, 1)
-
 
                         if self.nstage == 0:
                             plt.imshow(_label_fbp[j][0], vmin=0, vmax=0.04, cmap='gray')
