@@ -1,4 +1,4 @@
-# Enhanced Sparse-View CT Reconstruction with Projection-Domain CNN: Leveraging Hierarchical Measurement Decomposition and Fourier Constraints
+# Enhanced Sparse-View CT Reconstruction with Projection-Domain DL: Leveraging Hierarchical Measurement Decomposition and Fourier Constraints
 
 ## Requirements
 ___PLEASE INSTALL !!! DOCKER !!! TO CREATE CONTAINER.___
@@ -122,19 +122,19 @@ ___YOU MUST PREPARE THE DATASET.___
            --loss_type_prj img \
            --lr_type_prj consistency \
     ```
-      
+
 ### Test mode
 1. Image-domain W-Net trained at decomposition level [N] (*decomposition level [N] is equal to nstage=[N-1])
-    ```python
-    python main_for_img2img.py \
-          --scope ct_img2img \
-          --mode test \
-          --batch_size 1 \
-          --dir_data [PATH_OF_TEST_DATA_DIRECTORY] \
-          --nstage [N] \
-          --loss_type_img img \
-          --lr_type_img residual \
-    ```
+ ```python
+ python main_for_img2img.py \
+       --scope ct_img2img \
+       --mode test \
+       --batch_size 1 \
+       --dir_data [PATH_OF_TEST_DATA_DIRECTORY] \
+       --nstage [N] \
+       --loss_type_img img \
+       --lr_type_img residual \
+ ```
 
 2. Dual-domain D-Net trained at decomposition level [N] (*decomposition level [N] is equal to nstage=[N-1])
     ```python
